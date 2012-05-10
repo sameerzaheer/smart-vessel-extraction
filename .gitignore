@@ -1,0 +1,55 @@
+# ---- Build output folders (CMake / Visual Studio 2008 + 2010) ----
+Build/
+Debug/
+Release/
+Win32/
+ipch/
+*.dir/
+CMakeFiles/
+ITKIOFactoryRegistration/
+CMakeCache.txt
+cmake_install.cmake
+
+# CMake-generated Visual Studio project files (regenerate with CMake)
+*.sln
+*.vcproj
+*.vcxproj
+*.vcxproj.filters
+
+# ---- Visual Studio build artifacts / per-user state ----
+*.pdb
+*.ncb
+*.sdf
+*.ilk
+*.idb
+*.obj
+*.exe
+*.lib
+*.exp
+*.suo
+*.user
+*.manifest
+*.res
+*.rc
+*.tlog
+*.lastbuildstate
+*.log
+*.htm
+
+# ---- Medical / image data: must never be committed ----
+*.mhd
+*.mha
+*.raw
+*.zraw
+*.nii
+*.nii.gz
+*.dcm
+*.nrrd
+*.vtk
+*.fcsv
+
+# ---- Archives, shortcuts, cloud stubs ----
+*.rar
+*.zip
+*.lnk
+*.gdoc
