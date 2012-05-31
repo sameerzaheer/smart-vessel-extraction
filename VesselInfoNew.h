@@ -48,6 +48,8 @@ public:
 	//Values computed later
 	PhysicalPointType newSeed;
 	PhysicalPointType oldNewSeed;
+	PhysicalPointType point2; //the point #2
+
 	VectorType startToEnd;
 	unsigned int numPoints; //the number of points identified
 	unsigned int numTries; 

@@ -59,6 +59,7 @@ PURPOSE.  See the above copyright notices for more information.
 #include<fstream>
 
 #include "VesselInfoNew.h"
+#include "itkVesselExtractionTools.h"
 //===============================================================================
 
 
@@ -256,6 +257,7 @@ namespace itk
 
 		//EdW2012
 		//void TransformPointsSomePointsVTK( const std::string filename ) const;
+		//static int Test( int argc, char *argv[] );
 		int Test( int argc, char *argv[] );
 
 
@@ -276,6 +278,8 @@ namespace itk
 
 
 		/**** VesselTree ****/
+
+		// // Global variables // //
 	public:
 		//Image declarations
 		typedef float				PixelType;
@@ -353,7 +357,7 @@ namespace itk
 		typedef ResampleImageFilter<ImageType,ImageType> FilterType;
 		typename FilterType::Pointer filter;// = FilterType::New();
 		//Spacing
-		VectorType re_spacing;
+		VectorType reSpacing;
 		//Interpolator
 		typedef LinearInterpolateImageFunction< ImageType, double >  InterpolatorType1;  
 		//typedef itk::BSplineInterpolateImageFunction< ImageType, double >  InterpolatorType1;  
@@ -361,15 +365,17 @@ namespace itk
 		//direction
 		typename ImageType::DirectionType direction;
 		//Output
-		typename ImageType::Pointer resampled_image;
+		typename ImageType::Pointer resampledImage;
 
 		//Data declarations
 		vtkCellArray* checkLines;
 		vtkPoints* checkPts;
+		vtkIdType nLines;
+		float directionLength; //in mm
 
 		//To be Objectified
 		int checkInd;
-		int checkLin;
+		int checkLin;		
 		PhysicalPointType newStart;
 		PhysicalPointType prevCheck; //previous checkPoint
 		PhysicalPointType prevTracked; //previous point tracked
@@ -395,15 +401,19 @@ namespace itk
 		typedef itk::LinearInterpolateImageFunction< ImageType, double >  InterpolatorType2;  
 		typename InterpolatorType2::Pointer interpolator2;
 
-		/*Tools*/
+		// // Tools // //
 	public:
-		//stand-alone functions
+		//static functions
 		float min(float a, float b);
 		float max(float a, float b);
 		int smallest_index(VectorType A);
 		VectorType compute_vector(PhysicalPointType pointA, PhysicalPointType pointB);
+		PhysicalPointType convert_point(PhysicalPointType pointIn);
 		void cross_product(VectorType A, VectorType B, VectorType* C);
 		void compute_planeV(VectorType C, VectorType* A, VectorType* B);
+		float compute_distance(PhysicalPointType curPoint, PhysicalPointType refPoint);
+		float compute_angle(PhysicalPointType A, PhysicalPointType B, PhysicalPointType C);
+		float compute_angle(PhysicalPointType A, PhysicalPointType B, PhysicalPointType C, PhysicalPointType D);
 
 		//Image based tools
 		MType calculate_Gradient(IndexType point);
@@ -413,10 +423,10 @@ namespace itk
 		MType make_EigenMatrix(VectorType vA, VectorType vB, VectorType vC);
 		PhysicalPointType TwoD_Maximum(PhysicalPointType physicalIndex,  MType E_matrix);
 		PhysicalPointType move_Point(PhysicalPointType originalPhysicalPoint, MType E_matrix);
-		MType flipSign(MType E_mtx);
-		MType changeSign(MType E_mtx_prev, MType E_mtx);
-		MType correctOrientation(MType E_mtx, VectorType direction_);
-		MType correctOrientation(PhysicalPointType curPoint, PhysicalPointType refPoint, MType E_mtx);
+		MType flip_sign(MType E_mtx);
+		MType change_sign(MType E_mtx_prev, MType E_mtx);
+		MType correct_orientation(MType E_mtx, VectorType direction_);
+		MType correct_orientation(PhysicalPointType curPoint, PhysicalPointType refPoint, MType E_mtx);
 		float refine_seed(PhysicalPointType unrefinedSeed, PhysicalPointType* refinedSeed, VectorType* seedDirection, PhysicalPointType* testResult,MType E_mtx1);
 		int optimize_seed(PhysicalPointType seedPoint, VectorType v_dir, PhysicalPointType expectedSeed, PhysicalPointType* optimalPoint);
 		int optimize_seed(PhysicalPointType seedPoint, VectorType v_dir, PhysicalPointType* optimalPoint);
@@ -425,31 +435,26 @@ namespace itk
 		float test_GradientZero(IndexType point, MType E_matrix);
 		float RidgeSymmetry(MType E_matrix);
 		void initialize_distances();
-		float compute_distance(PhysicalPointType curPoint, PhysicalPointType refPoint);
+		int get_point(vtkSmartPointer<vtkIdList> pLine, int pInd, PhysicalPointType* returnPoint);
 		int get_point(int pLine, int pInd, PhysicalPointType* returnPoint);
-		float compute_angle(PhysicalPointType A, PhysicalPointType B, PhysicalPointType C);
-		float compute_angle(PhysicalPointType A, PhysicalPointType B, PhysicalPointType C, PhysicalPointType D);
 		void start_checks(int n);
 		PhysicalPointType new_checkPoint(float dist);
 		int check_orientation(PhysicalPointType currTracked, float dist);
-		int check_check(PhysicalPointType currTracked, int currI);
+		int check_check(PhysicalPointType currTracked, int currI);		
+		int check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints, int termCircle);
+		int check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints);
 		float compute_distances(PhysicalPointType curPoint, PhysicalPointType refPoint);
 		bool termination(PhysicalPointType physicalPoint, MType E_matrix);
 		float compute_radius(PhysicalPointType physicalIndex, double prev_rad, double est_rad, MType E_mtx);
-		int MAIN_LOOP(int n, vtkPoints *centerPoints, vtkFloatArray* radiusArray);
-		int check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints, int termCircle);
-		int check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints);
 		void LOOPER();
+
+		//VTK functions (static)
 		void reorder_points(vtkPoints *centerPoints, vtkPoints *orderedPoints, int firstpoints);		
 		void write_points(vtkPoints *inPoints, vtkPoints *outPoints);
 		void smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints, int total_points);		
 		void smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints);
-		void writePointsVTK(const char *filename, vtkPoints *points, vtkCellArray *centerLine, vtkFloatArray* radiusArray);
+		void write_pointsVTK(const char *filename, vtkPoints *points, vtkCellArray *centerLine, vtkFloatArray* radiusArray);
 
-		int read_file(char * argv[]);
-		int read_data(char * argv[]);
-		void INITIALIZE();
-		int VesselExtraction(int argc, char * argv[]);
 	};
 
 
