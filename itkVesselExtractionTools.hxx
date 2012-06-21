@@ -33,6 +33,7 @@ namespace itk
 		//W2012
 		//parameters
 		scale =1; //defined as radius (not diameter) of vessel
+		//scale=3;
 		beta= 0.4;
 		sigma =2.5;
 		sFactor=0.2;
@@ -68,7 +69,7 @@ namespace itk
 		angleThresh=0.54;
 		distanceThresh=1.0;
 
-		termCircles=false;
+		termPremature=false;
 
 		//Gradient filter (for radius estimation)
 		typename gradientType::Pointer gradientFilter = gradientType::New();
@@ -76,8 +77,15 @@ namespace itk
 		//interpolator for radius can be linear
 		typename InterpolatorType2::Pointer interpolator2 = InterpolatorType2::New();
 
-
 		//std::cout << "VesselExtractionTools() ..." << std::endl;
+
+		//write
+		write=false;
+		write1=false;
+
+		//time
+		time1=0;
+		time2=0;
 	}
 
 	/** Return the number of values, i.e the number of points in the moving set */
@@ -219,6 +227,21 @@ namespace itk
 				returnVector[i]/=sqrt(mag);
 			}
 			return returnVector;
+	}
+
+	//return pointA+vectorB
+	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
+	typename VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>::PhysicalPointType
+		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
+		::compute_point(PhysicalPointType pointA, VectorType vectorB){
+
+			PhysicalPointType returnPoint;
+			
+			for (int i=0;i<3;i++){
+				returnPoint[i]=pointA[i]+vectorB[i];
+			}
+
+			return returnPoint;
 	}
 
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
@@ -443,6 +466,11 @@ namespace itk
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
 		::TwoD_Maximum(PhysicalPointType physicalIndex,  MType E_matrix){
 
+			//time
+			clock_t start1T, start2T, final1T, final2T;
+
+			start1T=clock();
+
 			//********Resample image********
 			IndexType pointIndex;
 			PhysicalPointType maxPhysicalIndex;		
@@ -462,11 +490,15 @@ namespace itk
 			resampledImage=filter->GetOutput();
 			resampledImage->TransformPhysicalPointToIndex(physicalIndex, pointIndex);	
 
+			final1T=clock();
+
+			start2T=clock();	
 			//std::cout << "rSize   : "  << rSize<< std::endl;
 			//std::cout << "re size   : "  << resampledImage->GetLargestPossibleRegion().GetSize()<< std::endl;
 
 			//********Extract eigen vectors********
 			IndexType pointA1, pointB1, pointA2, pointB2, currentIndex, maxIndex, AIndex, BInd1, BInd2;
+			PhysicalPointType PpointA1, PpointB1, PpointA2, PpointB2;
 			float A[3], B[3]; 
 			float mag;
 			float hSize=reScale/(reSpacing[0]*sqrt(float(2)));
@@ -492,20 +524,26 @@ namespace itk
 
 			//Iterate in direction A
 
+
 			for (int i=0;i<3;i++){
 				pointA1[i]=min(max(floor(pointIndex[i]-hSize*A[i]+0.5),0),rSize[i]-1); 
 				pointA2[i]=min(max(floor(pointIndex[i]+hSize*A[i]+0.5),0),rSize[i]-1);
 			}
 
+			//resampledImage->TransformIndexToPhysicalPoint(pointA1, PpointA1);
+			//resampledImage->TransformIndexToPhysicalPoint(pointA2, PpointA2);
 			//std::cout << "hasz " << h_size << std::endl;
-			//std::cout << "A1 " << pointA1 << std::endl;
-			//std::cout << "A2 " << pointA2 << std::endl;
+			//std::cout << "A1 " << convert_point(PpointA1) << std::endl;
+			//std::cout << "A2 " << convert_point(PpointA2) << std::endl;
 
 			ImageLineItType itA(resampledImage, pointA1, pointA2); //iterator in directionA
 			itA.GoToBegin();
 			PixelType currentValue, maxValue=-1;
 			currentValue=(PixelType)itA.Get();	
 			maxIndex=pointIndex;
+
+			//temp
+			bool t=true;
 
 			while (!itA.IsAtEnd())
 			{
@@ -518,8 +556,13 @@ namespace itk
 				}
 
 				//std::cout << "cI " << currentIndex << std::endl;
-				//std::cout << "B1 " << pointB1 << std::endl;
-				//std::cout << "B2 " << pointB2 << std::endl;
+				//if (t){
+				//	t=false;
+				//	resampledImage->TransformIndexToPhysicalPoint(pointB1, PpointB1);
+				//	resampledImage->TransformIndexToPhysicalPoint(pointB2, PpointB2);
+				//	std::cout << "B1 " << convert_point(PpointB1) << std::endl;
+				//	std::cout << "B2 " << convert_point(PpointB2) << std::endl;
+				//}
 
 				ImageLineItType itB(resampledImage, pointB1, pointB2);
 
@@ -539,6 +582,12 @@ namespace itk
 				}
 				++itA;
 			}	
+			//time
+			final2T=clock();
+
+			time1+=(double)(final1T-start1T)/CLOCKS_PER_SEC;	
+			time2+=(double)(final2T-start2T)/CLOCKS_PER_SEC;
+
 			resampledImage->TransformIndexToPhysicalPoint(AIndex, maxPhysicalIndex);
 			//std::cout << "A ind  " << maxPhysicalIndex << std::endl;	
 
@@ -660,7 +709,37 @@ namespace itk
 
 			return E_mtx;
 	}
+/*
+		//assume correct orientation wrt direction_
+	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
+	typename VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>::MType 
+		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
+		::correct_singularity(MType E_mtx){ 	
+			
+			float thresHold=0.98;
+			float dotProduct1,dotProduct2;
+			dotProduct1=abs( E_mtx[1][0]*E_mtx[2][0]+E_mtx[1][1]*E_mtx[2][1]+E_mtx[1][2]*E_mtx[2][2] );
+			dotProduct2=abs( E_mtx[0][0]*E_mtx[2][0]+E_mtx[0][1]*E_mtx[2][1]+E_mtx[0][2]*E_mtx[2][2] );
 
+			if (dotProduct1 >thresHold && dotProduct2 >thresHold){
+
+			}
+
+
+			//compute_planeV (VectorType C, VectorType* A, VectorType* B);
+
+
+			
+			dot_product=direction_[0]*E_mtx[2][0]+direction_[1]*E_mtx[2][1]+direction_[2]*E_mtx[2][2];
+
+			if (dot_product<0){
+				E_mtx=flip_sign(E_mtx);	
+				//std::cout << "orientation corrected ******" << std::endl;	
+			}
+
+			return E_mtx;
+	}
+*/
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	typename VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>::MType 
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
@@ -704,7 +783,7 @@ namespace itk
 			pPoint=*refinedSeed;	
 
 			//**Estimate next point**
-			for (i=0;i<5;i++){
+			for (i=0;i<9;i++){
 				E_mtx=compute_EigenMatrix(HessianFilter->GetOutput(), pPoint);  
 				E_mtx=change_sign(E_mtx_prev,E_mtx);
 				E_mtx=correct_orientation(E_mtx, *seedDirection); //with respect to direction
@@ -797,15 +876,17 @@ namespace itk
 				radialBase+=radialIncrement;
 				axialIncrease+=axialIncrement;
 			}
-			/*
-			std::cout << "sc: " << maxScore << " dst: " << maxScoreDist << std::endl;	
-			std::cout << " BSd: " << bestSeed << " BDir: " << maxDirections << std::endl;	
+			
+			//std::cout << "sc: " << maxScore << " dst: " << maxScoreDist << std::endl;	
+			//std::cout << " BSd: " << bestSeed << " BDir: " << maxDirections << std::endl;	
 
-			std::cout << "sc: " << maxScore << " BTest: " << bestTest << std::endl;
-			std::cout << " SeedP: " << seedPoint  << "   Score: " << maxScore << std::endl;
-			std::cout << " ExpSeed: " << expectedSeed << "  VD: " << v_dir <<std::endl;
-			std::cout << " BSeed: " << bestSeed << " BDir: " << maxDirections << std::endl;
-			*/
+			if (write){
+				std::cout << "sc: " << maxScore << " BTest: " << bestTest << std::endl;
+				std::cout << " SeedP: " << seedPoint  << "   Score: " << maxScore << std::endl;
+				std::cout << " ExpSeed: " << expectedSeed << "  VD: " << v_dir << " VDP: " << compute_point(expectedSeed,v_dir) << std::endl;
+				std::cout << " BSeed: " << bestSeed << " BDir: " << maxDirections << " BDirP: " << compute_point(bestSeed,maxDirections) << std::endl;
+			}
+			
 			*optimalPoint=bestSeed;
 			if (endFunction == true)
 				return -1;
@@ -895,9 +976,20 @@ namespace itk
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	void 
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
-		::initialize_distances(){
+		::initialize_LOOP(){
+
+			//tracking distances
 			for (int i=0; i<20;i++)
 				distances[i]=0;	
+
+			//tracking points
+			trackable=3;
+			for (int i=0;i<2;i++){
+				prevPoint[i]=0;
+				prevVector[i]=0;
+				prevVector2[i]=0;
+			}
+
 	}
 
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
@@ -999,6 +1091,11 @@ namespace itk
 			distRemainder=0;
 			prevTracked=pointB;
 			prevTrackedI=2; //this doesn't seem to be used much
+
+			//initialize
+			nextSeed=prevCheck;
+			nextDirection=checkPoint;
+			
 			/*
 			std::cout << "S " <<pointA << std::endl;
 			std::cout << "St " <<checkPoint << std::endl;	// Later on C1
@@ -1044,10 +1141,11 @@ namespace itk
 			//check orientation
 			float cosAngle=compute_angle(checkPoint,prevCheck,prevTracked,currTracked);	
 
+			nextSeed=prevCheck;
+			nextDirection=checkPoint;
 			if (cosAngle>-2){
+				prevCheck=checkPoint;	
 				if (cosAngle<angleThresh){
-					nextSeed=prevCheck;
-					nextDirection=checkPoint;
 					/*
 					std::cout << "cA----------" << cosAngle << std::endl;
 
@@ -1057,10 +1155,10 @@ namespace itk
 					std::cout << "T2, " <<convert_point(currTracked) << ",1,1" << std::endl;
 					std::cout << "TDist, " <<compute_distance(prevTracked,currTracked)
 						<< "  CDist " << compute_distance(prevCheck,checkPoint) << std::endl;*/
-					prevCheck=checkPoint;	
+				
 					return -1;
 				}else{
-						/*
+					/*
 					std::cout << "cA     " << cosAngle << std::endl;
 					std::cout << "C1, " <<convert_point(prevCheck) << ",1,1" << std::endl;
 					std::cout << "C2, " <<convert_point(checkPoint) << ",1,1" << std::endl;
@@ -1068,9 +1166,8 @@ namespace itk
 					std::cout << "T2, " <<convert_point(currTracked) << ",1,1" << std::endl;	
 					
 					std::cout << "TDist, " <<compute_distance(prevTracked,currTracked)
-						<< "  CDist " << compute_distance(prevCheck,checkPoint) << std::endl;*/
-					
-					prevCheck=checkPoint;	
+						<< "  CDist " << compute_distance(prevCheck,checkPoint) << std::endl;				
+				*/
 					return 1;
 				}
 			}else{
@@ -1112,7 +1209,7 @@ namespace itk
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	int  
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
-		::check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints, int termCircle){
+		::check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints, bool termP){
 			int i,j;
 			int returnValue=0;
 			int decide;
@@ -1127,15 +1224,18 @@ namespace itk
 			thePoint[1]=getP[1]*(-1);
 			thePoint[2]=getP[2];
 			infoVector[n].newSeed=thePoint;*/
-
-			inPoints->GetPoint(2,getP);	
+			
+			if (total_points>2){
+				inPoints->GetPoint(2,getP);	
+			} else {
+				inPoints->GetPoint(1,getP);	
+			}
 			thePoint[0]=getP[0]*(-1);
 			thePoint[1]=getP[1]*(-1);
 			thePoint[2]=getP[2];
 			infoVector[n].point2=thePoint;
-
+			
 			start_checks(n);
-
 
 			for (i=3; i<total_points;i++){			
 				inPoints->GetPoint(i,getP);	
@@ -1144,22 +1244,29 @@ namespace itk
 				thePoint[2]=getP[2];
 				//std::cout<< "thePoint " << thePoint << std::endl;
 
-				decide=check_check(thePoint,i);
+				decide=check_check(thePoint,i);				
 
-				if (decide==0 && termCircle==1){
+				if (decide==0 && termP==true){
 					decide=-1;
 				}
 				if (decide==-1){
 					total_points=prevTrackedI; 
 					std::cout << " Ptracked " << prevTrackedI << std::endl;
-					infoVector[n].seedU=nextSeed;
-					infoVector[n].direction=nextDirection;
-					compute_v_dir(n);
+					
 					returnValue=1;
 					break;
 				} else if (decide==0){
 					break;
 				}
+			}
+
+			if (returnValue==1 || termP==true){
+					infoVector[n].seedU=nextSeed;
+					infoVector[n].direction=nextDirection;
+					compute_v_dir(n);
+					/*
+					std::cout << " nextSeed " << convert_point(nextSeed) << std::endl;
+					std::cout << " nextDirection " << convert_point(nextDirection) << std::endl;*/
 			}
 
 			//reorder the first points
@@ -1178,14 +1285,14 @@ namespace itk
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
 		::check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints){
 
-			return check_line_orientiation(n,inPoints,outPoints,0);
+			return check_line_orientiation(n,inPoints,outPoints,false);
 
 	}
 
 		template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	float  
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
-		::compute_distances(PhysicalPointType curPoint, PhysicalPointType refPoint){
+		::track_distances(PhysicalPointType curPoint, PhysicalPointType refPoint){
 			float distance_;
 			distance_=compute_distance(curPoint,refPoint);
 			//distance_=sqrt(pow(refPoint[0]-curPoint[0],2)+pow(refPoint[1]-curPoint[1],2)+pow(refPoint[2]-curPoint[2],2));
@@ -1200,13 +1307,32 @@ namespace itk
 			return distance_;
 	}
 
+			template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
+	void  
+		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
+		::track_directions(PhysicalPointType curPoint){
+			
+			prevVector2=prevVector;
+			prevVector=compute_vector(curPoint, prevPoint);
+			
+			prevPoint=curPoint;
+
+			if (trackable>0)
+					trackable--;
+
+			//std::cout << "trackable " << trackable << std::endl;
+			
+	}
+
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	bool  
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
 		::termination(PhysicalPointType physicalPoint, MType E_matrix){
 			IndexType point;
 			float backCount=0;
+			float dotProduct=0;
 			bool terminate_=false;
+			int i;
 
 			image->TransformPhysicalPointToIndex(physicalPoint, point);
 			/*
@@ -1234,15 +1360,29 @@ namespace itk
 			float value = image->GetPixel( point );
 
 			//termination by going in circles
-			for (int i=1; i<20;i++){
+			for (i=1; i<20;i++){
 				if (distances[i]>distances[i-1]) //these are distances from seed
 					backCount++;
 			}
 
 			if (backCount>8){
 				terminate_=true;
-				//	std::cout << "Term via Circles" << std::endl;
+				std::cout << "Term via Circles" << std::endl;
 			}
+		
+			//termination by reversal
+			for (i=0;i<3;i++){
+				dotProduct+=prevVector[i]*prevVector2[i];
+			}
+			if (trackable==0){ //check if enough values available
+				if (dotProduct<0) {
+					//terminate_=true;
+					//std::cout << " Term via reversal " << dotProduct<< std::endl;					
+				}			
+				
+			}
+			
+			//Return conclusion
 			return terminate_;
 	}
 
@@ -1315,32 +1455,58 @@ namespace itk
 
 	}
 
+	//add inPoints to the end of allPoints
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	void  
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
-		::write_points(vtkPoints *inPoints, vtkPoints *outPoints){
-			double getP[3];	
-			int total_points=(int)inPoints->GetNumberOfPoints();
+		::write_points(vtkPoints *inPoints, vtkPoints *allPoints, int finalInPoint){
+			double getP[3];				
 
 			//reorder the first points
-			for (int i=0; i<total_points;i++){			
+			for (int i=0; i<finalInPoint;i++){			
 				inPoints->GetPoint(i,getP);	
-				outPoints->InsertNextPoint (getP[0], getP[1],getP[2]);
+				allPoints->InsertNextPoint (getP[0], getP[1],getP[2]);
 			}
 
 	}
+
+	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
+	void  
+		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
+		::write_points(vtkPoints *inPoints, vtkPoints *allPoints){
+
+			int finalInPoint=(int)inPoints->GetNumberOfPoints();
+			write_points(inPoints, allPoints, finalInPoint);
+	}
+	
+		//trim A in accordance with B
+	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
+	void  
+		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
+		::trim_equal(vtkPoints *pointsA, vtkPoints *pointsAPermanent, int numPoints){
+			
+			double getP[3];	
+			int pointsLengthA=(int)pointsA->GetNumberOfPoints();
+			int newPointsLength= min(numPoints,pointsLengthA);
+			
+			write_points(pointsA, pointsAPermanent, newPointsLength);	
+			
+			//std::cout << "leng " << newPointsLength << " " << pointsA->GetNumberOfPoints()<< std::endl;
+	}
+
+
 	//Should make smoothing function more accurate by taking into account the distance between points
 	//Currently, the computation assumes a distance =1
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	void  
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
-		::smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints, int total_points){
+		::smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints, int finalPoint){
 			double a[3], getP[3], av[3];
 			double weights[11]={1,0.956,0.835,0.667,0.487,0.325,0.198,0.110,0.0563,0.0262,0.0112}; //Gaussian weighted
 			//c=3.335
 			double weight_sum;	
 
-			for (int i=0; i<total_points;i++){	
+			for (int i=0; i<finalPoint; i++){	
 				weight_sum=0;
 				a[0]=a[1]=a[2]=0;
 				//Look at the point itself
@@ -1350,11 +1516,12 @@ namespace itk
 				weight_sum+=weights[0];
 				//Look at its neighbours
 				for (int j=-1*windowSize; j<0;j++){
-					if((i+j)>=0 && (i-j)<total_points){
+					if((i+j)>=0 && (i-j)<finalPoint){
 						centerPoints->GetPoint(i+j,getP);
 						for (int k=0;k<3;k++)
 							a[k]+=weights[abs(j)]*getP[k];
 						weight_sum+=weights[abs(j)];
+
 						centerPoints->GetPoint(i-j,getP);
 						for (int k=0;k<3;k++)
 							a[k]+=weights[abs(j)]*getP[k];
@@ -1373,9 +1540,10 @@ namespace itk
 		VesselExtractionTools<TFixedPointSet,TMovingPointSet,TDistanceMap>
 		::smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints){
 
-			int total_points=(int)centerPoints->GetNumberOfPoints();
-			smooth_points(centerPoints,fixedPoints,total_points);
+			int finalPoint=(int)centerPoints->GetNumberOfPoints();
+			smooth_points(centerPoints,fixedPoints,finalPoint);
 	}
+
 
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	void  
