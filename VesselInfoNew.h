@@ -2,6 +2,7 @@
 #ifndef VESSELSEEDNew_H
 #define VESSELSEEDNew_H
 #include "itkImage.h"
+#include "itkOrientedImage.h"
 
 
 /** Note:  
@@ -16,15 +17,14 @@
 #define SPLINECURVENUMPOINTS_TEST SPLINECURVENUMPOINTS
 
 
-
-
 class VesselInfo
 {
 
 public:
 	static const unsigned int			Dimension = 3;
 	typedef float				PixelType;
-	typedef itk::Image< PixelType, Dimension >  ImageType;
+	//typedef itk::Image< PixelType, Dimension >  ImageType;
+	typedef itk::OrientedImage< PixelType, Dimension >  ImageType;
 	typedef ImageType::PointType				PhysicalPointType;
 	typedef itk::Vector<float,3U>				VectorType;
 	

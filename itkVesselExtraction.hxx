@@ -351,6 +351,7 @@ namespace itk
 			direction.SetIdentity();  
 			filter->SetDefaultPixelValue( 1.0 );  
 			reSpacing=spacing*sFactor;
+			reSpacing_=spacing*sFactor_;
 
 			const VectorType reSpacingConst(reSpacing);
 			filter->SetOutputSpacing( reSpacingConst );  
@@ -382,18 +383,26 @@ namespace itk
 			bool toContinue=false;
 			termPremature=false;
 
+			/*if (n==38){
+				write1=true;
+				std::cout << "write1 activated " << std::endl;	
+			}*/
+
 			//***INITIALIZE***
 			initialize_LOOP();
 
 			//start_checks(n);
 			if (firstTime){
+				if (write1)
+					std::cout << "PP 0th " << "," << convert_point(physicalPoint) << std::endl;
+
 				centerPoints->InsertNextPoint (physicalPoint[0]*(-1), physicalPoint[1]*(-1), physicalPoint[2]);
 				radiusArray->InsertNextValue(radius_prev);
 				startI=2;
 				firstTime=false;
 			}
 
-			///Find a new seed
+			///Find a new seed			
 			optimalSeedFound=optimize_seed(infoVector[n].seedU, infoVector[n].v_direction, &(infoVector[n].newSeed));
 			//and check if its good
 			if (optimalSeedFound !=1){
@@ -405,6 +414,9 @@ namespace itk
 				}
 				physicalPoint=infoVector[n].direction;
 				centerPoints->InsertNextPoint (physicalPoint[0]*(-1), physicalPoint[1]*(-1), physicalPoint[2]);
+				if (write1)
+					std::cout << "PP 1st " << "," << convert_point(physicalPoint) << std::endl;
+
 				radiusArray->InsertNextValue(radius_prev);
 				return 2;
 			}	
@@ -412,12 +424,20 @@ namespace itk
 			physicalPoint=infoVector[n].newSeed; //new_seed
 			centerPoints->InsertNextPoint (physicalPoint[0]*(-1), physicalPoint[1]*(-1), physicalPoint[2]);
 			radiusArray->InsertNextValue(radius_prev);
-			track_distances(physicalPoint,infoVector[n].seedU); //or new_seed
-			track_directions(physicalPoint);
-			//std::cout << "PP (" << i << ") : " << physicalPoint << std::endl;	
+			
+			if (write1)
+				std::cout << "PP 2nd " << "," << convert_point(physicalPoint) << std::endl;		
 
 			E_mtx_prev=compute_EigenMatrix(HessianFilter->GetOutput(), physicalPoint);
 			E_mtx_prev=correct_orientation(E_mtx_prev,infoVector[n].v_direction);
+
+			//this just sets up the termination data
+			termination(physicalPoint, E_mtx, n);
+			
+
+
+			if (write1)
+				std::cout << "Starting loop" << std::endl;
 
 			//***THE LOOP***
 			for (i=startI; i<max_iterations && !endLoop; i++){ //2
@@ -429,19 +449,29 @@ namespace itk
 				//with respect to overall direction
 				E_mtx=correct_orientation(E_mtx, infoVector[n].v_direction); 
 
+				//print_Emtx(E_mtx);
+
 				//**Estimate next point**
 				physicalEstimation=move_Point(physicalPoint, E_mtx);
+				PhysicalPointType physicalEstimation2=move_Point(physicalEstimation, E_mtx);
 				
-				if (write1)
-					std::cout << "PE" << i << "," << convert_point(physicalEstimation) << std::endl;	
+				if (write1){
+					std::cout << "PE : " << i << "," << convert_point(physicalEstimation) << std::endl;	
+					std::cout << "PE2: " << i << "," << convert_point(physicalEstimation2) << std::endl;	
+				}
 
 				//**Find the next point**
-				physicalPoint=TwoD_Maximum(physicalEstimation, E_mtx);	
+				if (fastSwitch){
+					physicalPoint=TwoD_Maximum_fast(physicalEstimation, E_mtx);
+				} else {
+					physicalPoint=TwoD_Maximum(physicalEstimation, E_mtx);
+				}				
+
 				//Record the point
 				centerPoints->InsertNextPoint (physicalPoint[0]*(-1), physicalPoint[1]*(-1), physicalPoint[2]);
 
 				if (write1)
-					std::cout << "PP" << i << "," << convert_point(physicalPoint) << std::endl;	
+					std::cout << "PP : " << i << "," << convert_point(physicalPoint) << std::endl;	
 
 				//**Find the radius**
 				radius_=compute_radius(physicalPoint, radius_prev, spacing[0]*2, E_mtx);
@@ -450,19 +480,11 @@ namespace itk
 				//scale=max(1,min(2,radius_/(2*spacing[0])));
 				//std::cout << "Radius " << radius_ << std::endl;					
 				//Save the cross-section and direction
-				E_mtx_prev=E_mtx; 		
-
-				distance__=compute_distance(physicalPoint,infoVector[n].seed);
-				track_distances(physicalPoint,infoVector[n].seedU); //or new_seed
-				track_directions(physicalPoint);
+				E_mtx_prev=E_mtx; 			
 
 				//Determine to end
-				if(distance__>infoVector[n].length){
+				if(termination(physicalPoint, E_mtx, n)){
 					endLoop=true;
-					std::cout << "L " << distance__ << "  " << infoVector[n].length << std::endl;	
-				}	else if(termination(physicalPoint, E_mtx)){
-					endLoop=true;
-					termPremature=true;					
 					//i=max(startI+1,i-10);		
 					//try i=max(startI+1,i-1);		
 				}				
@@ -529,21 +551,21 @@ namespace itk
 				
 				smooth_points(linePointsTemp,smoothedPoints);  //smoothen the points			
 				//write_points(linePointsTemp,smoothedPoints);
-				if (n!=143){ //43
+				
+				//continue_=check_line_orientiation(n, smoothedPoints, trimmedSPoints, termPremature);
+				//write1=true;					
+				//write_points(smoothedPoints,trimmedSPoints);
+				//std::cout << "Wrote onto trimmedS " << std::endl;					
+				if(j<maxJ-1){ 
 					continue_=check_line_orientiation(n, smoothedPoints, trimmedSPoints, termPremature);
+					//continue_=0;
+					//termPremature=false;
 				} else {
-					write=true;
-					if(j<2){ 
-						continue_=check_line_orientiation(n, smoothedPoints, trimmedSPoints, termPremature);
-					} else {
-						continue_=check_line_orientiation(n, smoothedPoints, trimmedSPoints, termPremature);
-						//write_points(linePointsTemp,trimmedSPoints);
-						//write_points(smoothedPoints,trimmedSPoints);
-						continue_=0;
-						termPremature=false;
-						
-					}
-				}					
+					//continue_=check_line_orientiation(n, smoothedPoints, trimmedSPoints, termPremature);
+					//write_points(linePointsTemp,trimmedSPoints);
+					write_points(smoothedPoints,trimmedSPoints);											
+					continue_=0;
+				}									
 
 				//std::cout << "continue_ " << continue_ << std::endl;
 				//std::cout << "tP " << termPremature << std::endl;
@@ -594,14 +616,15 @@ namespace itk
 
 		/************Declarations***********
 		*/
+		clock_t start2T, start3T, final2T, final3T;
+		start3T=clock();
+
 		typedef itk::ImageFileReader< ImageType >  ReaderType;
 		vtkPoints *centerPoints = vtkPoints::New(); 		
 		vtkCellArray *centerLine = vtkCellArray::New();
-		vtkFloatArray* radiusArray = vtkFloatArray::New();
-
+		vtkFloatArray *radiusArray = vtkFloatArray::New();
 		typename MType E_mtx;  
 		PhysicalPointType pPoint; 
-
 		PhysicalPointType physicalEstimation;
 		PhysicalPointType displaceme;
 		int totalPoints, numPoints;
@@ -642,9 +665,11 @@ namespace itk
 		exit(-1);*/
 
 		//Get Hessian
+		start2T=clock();
 		std::cout << "Processing Hessian ...";
 		find_Hessian();  
 		std::cout << "done" << std::endl;
+		final2T=clock();
 
 		////EXTRACT VESSEL TREE////
 
@@ -682,6 +707,9 @@ namespace itk
 			totalPoints+=numPoints;
 		}
 
+		//check for infinity points
+		bad_points(centerPoints);
+
 		//write everything
 		std::string outfile, prefix, suffix ="out.vtk";
 		prefix=argv[2];
@@ -690,13 +718,18 @@ namespace itk
 		write_pointsVTK(outfile.c_str(), centerPoints, centerLine, radiusArray); 
 
 		std::cout << "File written" << std::endl;
+		
+		final3T=clock();
+		
+		time2+=(double)(final2T-start2T)/CLOCKS_PER_SEC;	
+		time3+=(double)(final3T-start3T)/CLOCKS_PER_SEC;	
 
-		std::cout << "Times: 1: " << time1 << "s 2: " << time2 << "s " << std::endl;
+		std::cout << "Times: 1: " << time1 << "s 2: " << time2 << "s 3:" << time3 << "s " << std::endl;
 
 		return 0;
 	}
 
-
+	
 
 } // end namespace itk
 #endif

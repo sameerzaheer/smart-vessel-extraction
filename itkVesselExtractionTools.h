@@ -285,9 +285,11 @@ namespace itk
 		//Image declarations
 		typedef float				PixelType;
 		const static unsigned int			Dimension = 3;
-		typedef Image< PixelType, Dimension >  ImageType;
+		//typedef Image< PixelType, Dimension >  ImageType;
+		typedef OrientedImage< PixelType, Dimension >  ImageType;
 		typedef typename ImageType::IndexType				IndexType; 
 		typedef typename ImageType::PointType				PhysicalPointType;
+		typedef typename ImageType::SizeType				SizeType;		
 		typedef Vector<float,3U>				VectorType;
 		typename ImageType::Pointer image;
 		VectorType spacing;
@@ -298,6 +300,8 @@ namespace itk
 		float beta;//= 0.4;
 		float sigma;// =2.5;
 		float sFactor;//=0.2;
+		float sFactor_;
+		float intensityThreshold;
 
 		//other parameters
 		int max_iterations;//=140;
@@ -363,6 +367,7 @@ namespace itk
 		typename FilterType::Pointer filter;// = FilterType::New();
 		//Spacing
 		VectorType reSpacing;
+		VectorType reSpacing_;
 		//Interpolator
 		typedef LinearInterpolateImageFunction< ImageType, double >  InterpolatorType1;  
 		//typedef itk::BSplineInterpolateImageFunction< ImageType, double >  InterpolatorType1;  
@@ -407,10 +412,13 @@ namespace itk
 		typename InterpolatorType2::Pointer interpolator2;
 
 		//WRITE
-		bool write, write1;
+		bool write, write1, write2;
 
 		//TIME
-		float time1, time2;
+		float time1, time2, time3;
+
+		//FAST SWITCH
+		bool fastSwitch;
 
 		// // Tools // //
 	public:
@@ -437,6 +445,7 @@ namespace itk
 		MType make_EigenMatrix(VectorType vA, VectorType vB, VectorType vC);
 		
 		PhysicalPointType TwoD_Maximum(PhysicalPointType physicalIndex,  MType E_matrix);
+		PhysicalPointType TwoD_Maximum_fast(PhysicalPointType physicalIndex,  MType E_matrix);
 		
 		PhysicalPointType move_Point(PhysicalPointType originalPhysicalPoint, MType E_matrix);
 		MType flip_sign(MType E_mtx);
@@ -449,9 +458,6 @@ namespace itk
 		int optimize_seed(PhysicalPointType seedPoint, VectorType v_dir, PhysicalPointType* optimalPoint);
 		
 		void compute_v_dir(int n);
-		bool test_NegEvalue(MType E_matrix);
-		float test_GradientZero(IndexType point, MType E_matrix);
-		float RidgeSymmetry(MType E_matrix);
 
 		void initialize_LOOP();
 		
@@ -464,10 +470,14 @@ namespace itk
 		int check_check(PhysicalPointType currTracked, int currI);		
 		int check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints, bool termP);
 		int check_line_orientiation(int n, vtkPoints *inPoints, vtkPoints *outPoints);
+		void print_Emtx(MType E_mtx);
 		//termination
 		float track_distances(PhysicalPointType curPoint, PhysicalPointType refPoint);
 		void track_directions(PhysicalPointType curPoint);
-		bool termination(PhysicalPointType physicalPoint, MType E_matrix);
+		bool test_NegEvalue(MType E_matrix);
+		float test_GradientZero(IndexType point, MType E_matrix);
+		float RidgeSymmetry(MType E_matrix);
+		bool termination(PhysicalPointType physicalPoint, MType E_matrix, int n);
 
 		float compute_radius(PhysicalPointType physicalIndex, double prev_rad, double est_rad, MType E_mtx);
 		void LOOPER();
@@ -479,6 +489,7 @@ namespace itk
 		void trim_equal(vtkPoints *pointsA, vtkPoints *pointsAPermanent, int numPoints);
 		void smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints, int finalPoint);		
 		void smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints);
+		void bad_points(vtkPoints *centerPoints);
 		void write_pointsVTK(const char *filename, vtkPoints *points, vtkCellArray *centerLine, vtkFloatArray* radiusArray);
 
 	};
