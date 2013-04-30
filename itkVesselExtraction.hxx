@@ -13,6 +13,8 @@ Version:   $Revision$
 #define __itkVesselExtraction_hxx
 
 #include "itkVesselExtraction.h"
+#include "itkVesselExtractionTools.h"
+#include "itkVesselExtractionTools.hxx"
 #include "itkImageRegionConstIteratorWithIndex.h"
 
 namespace itk
@@ -361,7 +363,8 @@ namespace itk
 
 			//Random generator
 			randomGenerator = itk::Statistics::MersenneTwisterRandomVariateGenerator::New();
-			randomGenerator->Initialize(2861);
+			//randomGenerator->Initialize(2861);
+			randomGenerator->Initialize(2313);
 			//2861
 
 
@@ -374,8 +377,8 @@ namespace itk
 			int i=0,startI=1,j, goodPoints;
 			int returnInt=0;
 			int optimalSeedFound;
-			MType E_mtx_prev, E_mtx;		
-			PhysicalPointType physicalEstimation, physicalPoint=infoVector[n].seedU;	
+			MType E_mtx_prev, E_mtx, E_mtx_corrected;		
+			PhysicalPointType physicalEstimation, physicalEstimation2, physicalPoint=infoVector[n].seedU;
 			float radius_, radius_prev=infoVector[n].radiusS;  
 			float distance_, distance__;
 			float mag=0, cosAngle=0;
@@ -383,10 +386,14 @@ namespace itk
 			bool toContinue=false;
 			termPremature=false;
 
-			/*if (n==38){
-				write1=true;
-				std::cout << "write1 activated " << std::endl;	
-			}*/
+			if (n==39){
+				write1=true;				
+				//write4=true;
+				//std::cout << "write1 activated " << std::endl;	
+			} else{
+				write1=false;
+				write4=false;
+			}
 
 			//***INITIALIZE***
 			initialize_LOOP();
@@ -414,8 +421,9 @@ namespace itk
 				}
 				physicalPoint=infoVector[n].direction;
 				centerPoints->InsertNextPoint (physicalPoint[0]*(-1), physicalPoint[1]*(-1), physicalPoint[2]);
-				if (write1)
+				if (write1){					
 					std::cout << "PP 1st " << "," << convert_point(physicalPoint) << std::endl;
+				}
 
 				radiusArray->InsertNextValue(radius_prev);
 				return 2;
@@ -433,14 +441,38 @@ namespace itk
 
 			//this just sets up the termination data
 			termination(physicalPoint, E_mtx, n);
-			
-
 
 			if (write1)
 				std::cout << "Starting loop" << std::endl;
 
+			/*if (n==53){
+				write2=true;
+				std::cout << "write2 activated " << std::endl;	
+			}*/
+
 			//***THE LOOP***
 			for (i=startI; i<max_iterations && !endLoop; i++){ //2
+
+				if (i==26 && (write6==true ||write7==true)){ 					
+					convert.str("");
+					convert << i;
+					thisLabel=label;
+					thisLabel.append(convert.str());
+				} else { 
+					write6= false;
+				}
+				
+				if ( write1==true ){ //i==5
+					//write2=true;
+					//write3=true;					
+					write5=true;
+				} else {
+					write2=false;
+					write3=false;
+					write4=false;
+					write5=false;
+				}				
+
 				//**Find next cross section**
 				E_mtx=compute_EigenMatrix(HessianFilter->GetOutput(), physicalPoint);
 
@@ -448,30 +480,55 @@ namespace itk
 				E_mtx=change_sign(E_mtx_prev,E_mtx); //with respect to previous point
 				//with respect to overall direction
 				E_mtx=correct_orientation(E_mtx, infoVector[n].v_direction); 
-
-				//print_Emtx(E_mtx);
+				
+				//if (write3)
+					//print_Emtx(E_mtx);
 
 				//**Estimate next point**
 				physicalEstimation=move_Point(physicalPoint, E_mtx);
 				PhysicalPointType physicalEstimation2=move_Point(physicalEstimation, E_mtx);
 				
-				if (write1){
-					std::cout << "PE : " << i << "," << convert_point(physicalEstimation) << std::endl;	
-					std::cout << "PE2: " << i << "," << convert_point(physicalEstimation2) << std::endl;	
-				}
-
 				//**Find the next point**
 				if (fastSwitch){
-					physicalPoint=TwoD_Maximum_fast(physicalEstimation, E_mtx);
+					//physicalPoint=TwoD_Maximum_fast(physicalEstimation, E_mtx);
+					physicalEstimation2=TwoD_Recenter(physicalEstimation, E_mtx);
 				} else {
-					physicalPoint=TwoD_Maximum(physicalEstimation, E_mtx);
+					physicalEstimation2=TwoD_Maximum(physicalEstimation, E_mtx);
+					//physicalPoint=TwoD_Maximum_fast(physicalEstimation, E_mtx);					
 				}				
+
+				if (write1){
+					std::cout << "PE_" << i << "," << setprecision(4) <<  convert_point(physicalEstimation) << std::endl;	
+					std::cout << "PE2_" << i << "," << setprecision (4) << convert_point(physicalEstimation2) << std::endl;	
+				}
+
+				//Iterate
+				if (write1){
+					//std::cout << "PEV_" << i << "," << setprecision(4) <<  (physicalEstimation2-physicalPoint) << std::endl;	
+					//std::cout << "PE2_" << i << "," << setprecision (4) << convert_point(physicalEstimation2) << std::endl;	
+				}
+
+				if (vector_length(physicalEstimation2-physicalPoint) > 0.001){
+					E_mtx_corrected=compute_EigenMatrix(physicalEstimation2-physicalPoint);
+				} else {
+					E_mtx_corrected=E_mtx;
+					std::cout << "Termination by getting stuck" << std::endl;	
+					endLoop=true;
+				}
+
+				if (fastSwitch){
+					//physicalPoint=TwoD_Maximum_fast(physicalEstimation, E_mtx);
+					physicalPoint=TwoD_Recenter(physicalEstimation2, E_mtx_corrected);
+				} else {
+					physicalPoint=TwoD_Maximum(physicalEstimation2, E_mtx_corrected);
+					//physicalPoint=TwoD_Maximum_fast(physicalEstimation, E_mtx);					
+				}
 
 				//Record the point
 				centerPoints->InsertNextPoint (physicalPoint[0]*(-1), physicalPoint[1]*(-1), physicalPoint[2]);
 
 				if (write1)
-					std::cout << "PP : " << i << "," << convert_point(physicalPoint) << std::endl;	
+					std::cout << "PP_" << i << "," << setprecision(4) << convert_point(physicalPoint) << std::endl;	
 
 				//**Find the radius**
 				radius_=compute_radius(physicalPoint, radius_prev, spacing[0]*2, E_mtx);
@@ -504,6 +561,9 @@ namespace itk
 			//goodPoints=prevTrackedI;
 			//}
 
+			if (write7)
+				write_1D_file("radiusData.txt", radiusArray, radiusArray->GetNumberOfTuples(), thisLabel);
+			
 			return i;
 	}
 	
@@ -524,13 +584,14 @@ namespace itk
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
 	void
 		VesselExtraction<TFixedPointSet,TMovingPointSet,TDistanceMap>
-		::Vessel_tracking_orientation(int n, vtkPoints *trimmedPoints, vtkFloatArray* radiusArray)
+		::Vessel_tracking_orientation_debug(int n, vtkPoints *trimmedPoints, vtkPoints *linePoints, vtkFloatArray* radiusArray)
 	{
 			vtkPoints *segmentPoints;
 			vtkPoints *linePointsTemp;
-			vtkPoints *linePoints = vtkPoints::New(); //keeps history of points
+			//vtkPoints *linePoints = vtkPoints::New(); //keeps history of points
 			vtkPoints *smoothedPoints;
 			vtkPoints *trimmedSPoints;
+			vtkFloatArray* radiusArrayTemp;
 
 			firstTime=true;
 			int j=0;
@@ -540,17 +601,23 @@ namespace itk
 			
 			while (true){
 								
+				//linePoints are previous raw points, if any
 				segmentPoints = vtkPoints::New(); 				
 				smoothedPoints = vtkPoints::New();
 				trimmedSPoints = vtkPoints::New();	
 				linePointsTemp = vtkPoints::New();	
+				radiusArrayTemp = vtkFloatArray::New();
 				write_points(linePoints,linePointsTemp); //fill the temp vector
 					
-				numSPoints=tracking_LOOP(n, segmentPoints, radiusArray); 			
+				numSPoints=tracking_LOOP(n, segmentPoints, radiusArrayTemp); 
+
+				int _r= radiusArray->GetNumberOfTuples();
+				int _s= segmentPoints->GetNumberOfPoints();
+
 				write_points(segmentPoints,linePointsTemp,numSPoints);
 				
 				smooth_points(linePointsTemp,smoothedPoints);  //smoothen the points			
-				//write_points(linePointsTemp,smoothedPoints);
+				//write_points(linePointsTemp,smoothedPoints);  //Don't smoothen the points
 				
 				//continue_=check_line_orientiation(n, smoothedPoints, trimmedSPoints, termPremature);
 				//write1=true;					
@@ -575,9 +642,15 @@ namespace itk
 				
 				//trim down the linePoints in accordance with check_line_orientation results
 				numAPoints=(int)(trimmedSPoints->GetNumberOfPoints()-linePoints->GetNumberOfPoints());
-				trim_equal(segmentPoints,linePoints,numAPoints); 				
+				int _l = linePoints->GetNumberOfPoints();
+				trim_equal(segmentPoints,linePoints,numAPoints); //add the good portion of segmentPoints to linePoints		
+				trim_equal_array(radiusArrayTemp,radiusArray,numAPoints);
+
+				int _s1 = segmentPoints->GetNumberOfPoints();
+				int _l1 = linePoints->GetNumberOfPoints();
+				int _t = trimmedSPoints->GetNumberOfPoints();
 				
-				std::cout << "AT: " << j << " #Pts=" << numSPoints <<  "; " << linePoints->GetNumberOfPoints() << std::endl;
+				//std::cout << "AT: " << j << " #Pts=" << numSPoints <<  "; " << linePoints->GetNumberOfPoints() << std::endl;
 
 				segmentPoints->Delete();
 				smoothedPoints->Delete();		
@@ -586,19 +659,34 @@ namespace itk
 				j++; 
 
 				if (continue_!=1 || j>=maxJ){ //maxJ
-					write_points(trimmedSPoints, trimmedPoints); //linePoints are all the points
+					write_points(trimmedSPoints, trimmedPoints); //trimmedPoints are the smoothed points
 					trimmedSPoints->Delete();
 					break;
 				}	else{
 					trimmedSPoints->Delete();
 				}
 			}
+			int __t = trimmedPoints->GetNumberOfPoints();
+
 			//include in any final version but comment out line above
 			
 			//smooth_points(linePoints,smoothedPoints);  //smoothen the points
 			//infoVector[n].newSeed=infoVector[n].oldNewSeed;
 			//check_line_orientiation(n, smoothedPoints, trimmedPoints); 
 		
+	}
+
+	//Non de-bugging version
+	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
+	void
+		VesselExtraction<TFixedPointSet,TMovingPointSet,TDistanceMap>
+		::Vessel_tracking_orientation(int n, vtkPoints *trimmedPoints, vtkFloatArray* radiusArray)
+	{
+
+		vtkPoints *linePoints = vtkPoints::New(); //keeps history of points
+		Vessel_tracking_orientation_debug(n, trimmedPoints, linePoints, radiusArray);
+		linePoints->Delete();
+
 	}
 
 	template <class TFixedPointSet, class TMovingPointSet, class TDistanceMap>
@@ -613,6 +701,14 @@ namespace itk
 			std:: cout << "Example: SmartVesselExtraction EHPS3R3Crop.mhd EHPS2103BP806Tfm3.vtk" << std::endl;
 			exit(-1);
 		} 	
+		//Get current directory
+		char cCurrentPath[FILENAME_MAX];
+
+		if (!_getcwd(cCurrentPath, sizeof(cCurrentPath)))
+     {
+     return errno;
+     }
+
 
 		/************Declarations***********
 		*/
@@ -621,6 +717,7 @@ namespace itk
 
 		typedef itk::ImageFileReader< ImageType >  ReaderType;
 		vtkPoints *centerPoints = vtkPoints::New(); 		
+		vtkPoints *rawCenterPoints = vtkPoints::New(); 		
 		vtkCellArray *centerLine = vtkCellArray::New();
 		vtkFloatArray *radiusArray = vtkFloatArray::New();
 		typename MType E_mtx;  
@@ -638,9 +735,15 @@ namespace itk
 		std::cout << "Initializing... ";
 		/************Initializations************/ 
 		//Read image
-		ReaderType::Pointer reader = ReaderType::New();
+		ReaderType::Pointer reader = ReaderType::New();		
 		const char * filename = argv[1];
 		reader->SetFileName( filename ); 
+
+		ifstream ifile( filename );
+		if (!ifile) {
+			std::cout << "FileNotFound ";
+			exit(-2);
+		}
 		image = reader->GetOutput();
 		reader->Update();
 
@@ -674,9 +777,19 @@ namespace itk
 		////EXTRACT VESSEL TREE////
 
 		totalPoints=0;
-		for (int n=0; n<infoVector.size();n++){ // infoVector.size();n++){ 
+		for (int n=0; n<40; n++){ // infoVector.size();n++){
 			vtkPoints *trimmedPoints = vtkPoints::New();			
+			vtkPoints *rawPoints = vtkPoints::New();
 			std::cout << "-------N " << n << std::endl;		
+			write6=true;
+			write7=true;
+			if (write6 || write7){
+				label= "N";
+				convert.str("");
+				convert << n;
+				label.append(convert.str());
+				label.append("_");
+			}
 
 			//if (n==43)
 				//write=true;
@@ -684,18 +797,19 @@ namespace itk
 			///////////// Track vessel  /////////////
 			
 			//Vessel_tracking(n,trimmedPoints,radiusArray);
-			Vessel_tracking_orientation(n,trimmedPoints,radiusArray);			
+			Vessel_tracking_orientation_debug(n,trimmedPoints,rawPoints,radiusArray);		
 
 			////Creating output////
 
 			//find total number of points
 			numPoints=(int)trimmedPoints->GetNumberOfPoints();
-			std::cout << " Total Pts=" << numPoints << std::endl;
+			//std::cout << " Pts mismatch=" << numPoints-(int)rawPoints->GetNumberOfPoints() << std::endl;
 
 			//add them to the array of all center points
 			write_points(trimmedPoints, centerPoints);
+			write_points(rawPoints, rawCenterPoints);
 			
-			//std::cout << "Actual Points =      " << (int)smoothedPoints->GetNumberOfPoints() << std::endl;
+			//std::cout << "Actual Points =    " << (int)smoothedPoints->GetNumberOfPoints() << std::endl;
 			
 			vtkIdType* pointIDs = new vtkIdType[numPoints];
 			for (int i=0; i<numPoints; i++){
@@ -705,17 +819,26 @@ namespace itk
 			//put points in a line
 			centerLine->InsertNextCell(numPoints,pointIDs); 
 			totalPoints+=numPoints;
+
+			rawPoints->Delete();
 		}
 
 		//check for infinity points
 		bad_points(centerPoints);
 
 		//write everything
-		std::string outfile, prefix, suffix ="out.vtk";
+		std::string outfile, outfile1, prefix, suffix ="out.vtk", suffix1 ="outraw.vtk";
 		prefix=argv[2];
 		prefix=prefix.substr(0,prefix.size()-4);
 		outfile= prefix+suffix;   
+		outfile1= prefix+suffix1;
+
+		int a= centerPoints->GetNumberOfPoints();
+		int b= rawCenterPoints->GetNumberOfPoints();
+		int c = centerLine->GetNumberOfCells();
 		write_pointsVTK(outfile.c_str(), centerPoints, centerLine, radiusArray); 
+		write_pointsVTK(outfile1.c_str(), rawCenterPoints, centerLine, radiusArray); 
+		
 
 		std::cout << "File written" << std::endl;
 		

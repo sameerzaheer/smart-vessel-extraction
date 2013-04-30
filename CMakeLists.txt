@@ -4,8 +4,8 @@ PROJECT( SmartVesselExtraction )
 CMAKE_MINIMUM_REQUIRED( VERSION 2.8 )
 
 
-SET(ITK_DIR C:/VITK/ITK3201/Build)
-SET(VTK_DIR C:/VITK/VTK580/Build)
+SET(ITK_DIR C:/VITK_10/ITK3201/Build)
+SET(VTK_DIR C:/VITK_10/VTK580/Build)
 
 
 
@@ -69,6 +69,3 @@ vtkVolumeRendering.lib
 vtkWidgets.lib
 vtkzlib.lib
 )
-
-
-

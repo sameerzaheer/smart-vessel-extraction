@@ -28,6 +28,7 @@ PURPOSE.  See the above copyright notices for more information.
 #include "itkLinearInterpolateImageFunction.h"
 #include "itkLineConstIterator.h"
 #include <math.h>
+#include <iomanip>
 #include <time.h>
 #include "itkMatrix.h"
 #include "itkMersenneTwisterRandomVariateGenerator.h"
@@ -56,8 +57,9 @@ PURPOSE.  See the above copyright notices for more information.
 
 #include <algorithm>
 #include <string>
-#include<iostream>
-#include<fstream>
+#include <iostream>
+#include <fstream>
+#include <direct.h>
 
 #include "VesselInfoNew.h"
 #include "itkVesselExtractionTools.h"
@@ -343,7 +345,7 @@ namespace itk
 		VectorType v_direction; //normalized direction
 
 		//Max
-		PhysicalPointType physicalPoint; // two d max
+		//PhysicalPointType physicalPoint, physicalPointTemp; // two d max
 
 		//Hessian declarations
 		typedef HessianRecursiveGaussianImageFilter<ImageType> HessianFilterType;
@@ -412,13 +414,18 @@ namespace itk
 		typename InterpolatorType2::Pointer interpolator2;
 
 		//WRITE
-		bool write, write1, write2;
+		bool write, write1, write2, write3, write4, write5, write6, write7;
+		std::string label, thisLabel;
+		std::stringstream convert;
 
 		//TIME
 		float time1, time2, time3;
 
 		//FAST SWITCH
 		bool fastSwitch;
+
+		float minIntensity;
+		float maxIntensity;
 
 		// // Tools // //
 	public:
@@ -430,6 +437,8 @@ namespace itk
 		VectorType compute_vector(PhysicalPointType pointA, PhysicalPointType pointB);
 		PhysicalPointType compute_point(PhysicalPointType pointA, VectorType vectorB);
 		PhysicalPointType convert_point(PhysicalPointType pointIn);
+		VectorType convert_vector(VectorType vectorIn);
+		double vector_length(VectorType vectorIn);
 		void cross_product(VectorType A, VectorType B, VectorType* C);
 		void compute_planeV(VectorType C, VectorType* A, VectorType* B);
 		float compute_distance(PhysicalPointType curPoint, PhysicalPointType refPoint);
@@ -442,10 +451,15 @@ namespace itk
 		
 		void find_Hessian();
 		MType compute_EigenMatrix(HessianImagePointer HessianImage, PhysicalPointType physicalPoint);
+		MType compute_EigenMatrix(VectorType vector);
 		MType make_EigenMatrix(VectorType vA, VectorType vB, VectorType vC);
+
+		float Ray_Boundary(PixelType **CS, int *CSsize, int *point, float degree);
+		void CS_center(PixelType **CS, int *CSsize, int searchBound, int *Center);
 		
 		PhysicalPointType TwoD_Maximum(PhysicalPointType physicalIndex,  MType E_matrix);
 		PhysicalPointType TwoD_Maximum_fast(PhysicalPointType physicalIndex,  MType E_matrix);
+		PhysicalPointType TwoD_Recenter(PhysicalPointType physicalIndex,  MType E_matrix);
 		
 		PhysicalPointType move_Point(PhysicalPointType originalPhysicalPoint, MType E_matrix);
 		MType flip_sign(MType E_mtx);
@@ -485,12 +499,17 @@ namespace itk
 		//VTK functions (static)
 		void reorder_points(vtkPoints *centerPoints, vtkPoints *orderedPoints, int firstpoints);
 		void write_points(vtkPoints *inPoints, vtkPoints *allPoints, int finalInPoint);
+		void write_array_elements(vtkFloatArray *inPoints, vtkFloatArray *allPoints, int finalInPoint);
 		void write_points(vtkPoints *inPoints, vtkPoints *allPoints);
 		void trim_equal(vtkPoints *pointsA, vtkPoints *pointsAPermanent, int numPoints);
+		void trim_equal_array(vtkFloatArray *arrayA, vtkFloatArray *arrayAPermanent, int numPoints);
 		void smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints, int finalPoint);		
 		void smooth_points(vtkPoints *centerPoints, vtkPoints *fixedPoints);
 		void bad_points(vtkPoints *centerPoints);
 		void write_pointsVTK(const char *filename, vtkPoints *points, vtkCellArray *centerLine, vtkFloatArray* radiusArray);
+		void write_1D_file(char *filename, float *points, int length, std::string label);
+		void write_1D_file(char *filename, vtkFloatArray *points, int length, std::string label);
+		void write_2D_file(char *filename, float **points, int width, int height, std::string label);
 
 	};
 

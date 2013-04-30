@@ -19,7 +19,7 @@
 
 //#include "itkSmartVesselExtraction.h"
 #include "itkVesselExtraction.h"
-
+#include "itkSandBox.h"
 
 #include "itkPointSet.h"
 #include "itkPoint.h"
@@ -47,14 +47,20 @@ int TestVesselExtraction( int argc, char *argv[] )
 	//typedef itk::PointSet<double>  PointSet3DCurveType;
 
   typedef itk::VesselExtraction<PointSetType,PointSetType> VesselExtractionType;
+	typedef itk::SandBox<PointSetType,PointSetType> SandBoxType;
 
   typedef VesselExtractionType::Pointer VesselExtractionPointer;
-  VesselExtractionPointer Extraction = VesselExtractionType::New();
+	VesselExtractionPointer Extraction = VesselExtractionType::New();
+	
+	typedef SandBoxType::Pointer SandBoxPointer;
+  SandBoxPointer SandBox = SandBoxType::New();
+
 	//Extraction->Print(std::cout);
 
 	//smartExtraction->Test(argc, argv);
 	//int VesselExtraction(int argc, char * argv[]);
 	Extraction->Extraction_MAIN(argc, argv);
+	//SandBox->Extraction_MAIN(argc, argv);
 
 	//=============================================================================
 

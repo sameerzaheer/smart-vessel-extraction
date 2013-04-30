@@ -1,8 +1,8 @@
 
 
-set path=C:\VITK\VTK580\Build\bin\Debug;C:\VITK\ITK3201\Build\bin\Debug;%path%
+cd C:\Work\code\SmartVesselExtraction\Debug
 
-cd C:\Work\code\SmartVesselExtraction\Build\Debug
+set path=C:\VITK_10\VTK580\Build\bin\Debug;C:\VITK_10\ITK3201\Build\bin\Debug;%path%
 
 
 //August 10
@@ -67,4 +67,14 @@ SmartVesselExtraction PigLungS17In.mhd PigS17T50Seed11__new.vtk
 SmartVesselExtraction PigLungS24InL.mhd PigS24T52Seed1__new.vtk
 
 
+//Oct 1
+SmartVesselExtraction EHPS3R3Crop.mhd EHPS2103N6T112RS1mmTfm801.vtk
+EHPS03N6T112RS1mm.vtk  Ground truth
+
+//Nov 12
+SmartVesselExtraction EHPS3R3Crop.mhd EHPS03N6T112RS1mm.vtk
+//use ground truth as guidance
+
+//Nov 20
+SmartVesselExtraction EHPS3R3Crop.mhd Ground_truth.vtk
 

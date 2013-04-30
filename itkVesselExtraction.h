@@ -57,6 +57,9 @@ PURPOSE.  See the above copyright notices for more information.
 #include <string>
 #include<iostream>
 #include<fstream>
+#include <iomanip>
+#include <locale>
+#include <sstream>
 
 #include "itkVesselExtractionTools.h"
 //===============================================================================
@@ -295,6 +298,7 @@ namespace itk
 		void INITIALIZE();
 		int tracking_LOOP(int n, vtkPoints *centerPoints, vtkFloatArray* radiusArray);
 		void Vessel_tracking(int n, vtkPoints *smoothedPoints, vtkFloatArray* radiusArray);
+		void Vessel_tracking_orientation_debug(int n, vtkPoints *trimmedPoints, vtkPoints *linePoints, vtkFloatArray* radiusArray);
 		void Vessel_tracking_orientation(int n, vtkPoints *trimmedPoints, vtkFloatArray* radiusArray);
 		int Extraction_MAIN(int argc, char * argv[]);
 	};
